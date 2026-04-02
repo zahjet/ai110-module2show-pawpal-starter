@@ -110,18 +110,62 @@ if st.session_state.owner:
         tasks = st.session_state.selected_pet.get_tasks()
         if tasks:
             st.markdown(f"**Tasks for {st.session_state.selected_pet.name}:**")
-            for task in tasks:
-                with st.container(border=True):
-                    col1, col2, col3, col4 = st.columns([2, 1, 1, 1])
-                    with col1:
-                        st.text(f"📋 {task.title}")
-                    with col2:
-                        st.text(f"⏱️ {task.duration_minutes}m")
-                    with col3:
-                        priority_emoji = {"low": "🟢", "medium": "🟡", "high": "🔴"}
-                        st.text(f"{priority_emoji.get(task.priority, '⚪')} {task.priority}")
-                    with col4:
-                        st.text(f"{task.frequency}")
+            
+            # Add sorting/filtering options
+            col1, col2, col3 = st.columns(3)
+            with col1:
+                sort_option = st.selectbox(
+                    "Sort by:", 
+                    ["Priority", "Time", "Title"], 
+                    key="sort_option"
+                )
+            with col2:
+                filter_option = st.selectbox(
+                    "Filter:", 
+                    ["All", "Completed", "Pending"], 
+                    key="filter_option"
+                )
+            with col3:
+                if st.button("🔄 Refresh Tasks", key="refresh_tasks"):
+                    st.rerun()
+            
+            # Apply sorting and filtering
+            scheduler = Scheduler(st.session_state.owner, st.session_state.selected_pet)
+            
+            if sort_option == "Priority":
+                sorted_tasks = scheduler.sort_tasks_by_priority()
+            elif sort_option == "Time":
+                sorted_tasks = scheduler.sort_tasks_by_time()
+            else:  # Title
+                sorted_tasks = sorted(tasks, key=lambda t: t.title)
+            
+            # Apply filtering
+            if filter_option == "Completed":
+                filtered_tasks = scheduler.filter_tasks(completed=True)
+            elif filter_option == "Pending":
+                filtered_tasks = scheduler.filter_tasks(completed=False)
+            else:
+                filtered_tasks = sorted_tasks
+            
+            # Display tasks in a nice table
+            task_data = []
+            for task in filtered_tasks:
+                status_icon = "✅" if task.is_completed else "⏳"
+                priority_icon = {"low": "🟢", "medium": "🟡", "high": "🔴"}.get(task.priority, "⚪")
+                time_str = task.scheduled_time or "Not set"
+                task_data.append({
+                    "Status": status_icon,
+                    "Title": task.title,
+                    "Time": time_str,
+                    "Priority": f"{priority_icon} {task.priority}",
+                    "Duration": f"{task.duration_minutes}m",
+                    "Frequency": task.frequency
+                })
+            
+            if task_data:
+                st.table(task_data)
+            else:
+                st.info("No tasks match the current filter.")
         else:
             st.info("No tasks yet. Add one above.")
         
@@ -129,6 +173,15 @@ if st.session_state.owner:
         
         # ===== SCHEDULE GENERATION =====
         st.subheader("📅 Generate Daily Schedule")
+        
+        # Check for conflicts before scheduling
+        if st.session_state.owner:
+            conflicts = st.session_state.owner.detect_all_time_conflicts()
+            if conflicts:
+                st.warning("⚠️ **Time Conflicts Detected:**")
+                for conflict in conflicts:
+                    st.text(f"  • {conflict}")
+                st.info("💡 Tip: Edit task times to resolve conflicts before scheduling.")
         
         if st.button("Generate Schedule", key="btn_generate_schedule"):
             scheduler = Scheduler(st.session_state.owner, st.session_state.selected_pet)
@@ -144,11 +197,24 @@ if st.session_state.owner:
             else:
                 st.error("⚠️ Schedule exceeds available time or has conflicts.")
             
-            # Check for conflicts
-            conflicts = scheduler.check_time_conflicts()
-            if conflicts:
-                st.warning("⚠️ Time Constraints:")
-                for conflict in conflicts:
-                    st.text(f"  {conflict}")
+            # Show scheduled tasks in a nice format
+            if schedule.scheduled_tasks:
+                st.markdown("**Scheduled Tasks:**")
+                schedule_data = []
+                for st_task in schedule.scheduled_tasks:
+                    schedule_data.append({
+                        "Time": st_task.start_time.strftime("%I:%M %p"),
+                        "Task": st_task.task.title,
+                        "Duration": f"{st_task.task.duration_minutes}m",
+                        "Priority": st_task.task.priority
+                    })
+                st.table(schedule_data)
+            
+            # Check for conflicts in the generated schedule
+            schedule_conflicts = scheduler.check_time_conflicts()
+            if schedule_conflicts:
+                st.warning("⚠️ **Scheduling Issues:**")
+                for conflict in schedule_conflicts:
+                    st.text(f"  • {conflict}")
 else:
     st.warning("⚠️ Please set up an owner first to manage pets and tasks.")
