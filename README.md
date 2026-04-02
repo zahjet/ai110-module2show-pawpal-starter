@@ -51,3 +51,20 @@ The current PawPal+ implementation now includes:
 - Recurring tasks: completing a daily or weekly task generates next occurrence automatically.  
 - Basic conflict detection by exact scheduled-time matches across pets/tasks.
 
+## Testing PawPal+
+
+Run the automated test suite to verify system behavior:
+
+```bash
+python -m pytest test_pawpal.py -v
+```
+
+The test suite covers:
+- **Core functionality**: Task creation, completion, priority scoring
+- **Pet and Owner management**: Adding pets/tasks, availability settings
+- **Scheduling logic**: Priority sorting, time-based scheduling, feasibility checks
+- **Advanced features**: Time sorting, completion filtering, recurring tasks, conflict detection
+- **Edge cases**: Empty pets, time conflicts, availability limits, due date overrides
+
+**Confidence Level**: ⭐⭐⭐⭐⭐ (5/5 stars) - All 30 tests pass, covering happy paths and edge cases. The system reliably handles task scheduling, recurrence, and conflict detection.
+

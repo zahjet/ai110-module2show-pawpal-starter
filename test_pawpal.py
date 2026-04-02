@@ -1,7 +1,7 @@
 """Pytest tests for PawPal+ system."""
 
 import pytest
-from datetime import datetime, time
+from datetime import datetime, time, timedelta, date
 from pawpal_system import Owner, Pet, Task, Scheduler, DailySchedule, ScheduledTask
 
 
@@ -233,5 +233,246 @@ class TestDailySchedule:
         assert schedule.is_feasible() is True
 
 
-if __name__ == "__main__":
-    pytest.main([__file__, "-v"])
+class TestSchedulerAdvanced:
+    """Tests for advanced Scheduler features: sorting, filtering, recurrence."""
+    
+    def test_sort_tasks_by_time(self):
+        """Test that tasks are sorted by scheduled time."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        # Add tasks out of chronological order
+        task1 = Task(title="Morning", duration_minutes=10, priority="high", frequency="daily", scheduled_time="09:00")
+        task2 = Task(title="Afternoon", duration_minutes=10, priority="high", frequency="daily", scheduled_time="15:00")
+        task3 = Task(title="Evening", duration_minutes=10, priority="high", frequency="daily", scheduled_time="18:00")
+        
+        pet.add_task(task2)  # Add out of order
+        pet.add_task(task1)
+        pet.add_task(task3)
+        
+        scheduler = Scheduler(owner, pet)
+        sorted_tasks = scheduler.sort_tasks_by_time()
+        
+        # Should be sorted: 09:00, 15:00, 18:00
+        assert sorted_tasks[0].scheduled_time == "09:00"
+        assert sorted_tasks[1].scheduled_time == "15:00"
+        assert sorted_tasks[2].scheduled_time == "18:00"
+    
+    def test_filter_tasks_by_completion(self):
+        """Test filtering tasks by completion status."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task1 = Task(title="Task1", duration_minutes=10, priority="high", frequency="daily")
+        task2 = Task(title="Task2", duration_minutes=10, priority="high", frequency="daily")
+        
+        pet.add_task(task1)
+        pet.add_task(task2)
+        
+        task1.mark_complete()  # Mark one complete
+        
+        scheduler = Scheduler(owner, pet)
+        
+        completed = scheduler.filter_tasks(completed=True)
+        pending = scheduler.filter_tasks(completed=False)
+        all_tasks = scheduler.filter_tasks()
+        
+        assert len(completed) == 1
+        assert len(pending) == 1
+        assert len(all_tasks) == 2
+    
+    def test_recurring_task_creation(self):
+        """Test that marking a daily task complete creates next occurrence."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task = Task(title="Daily Walk", duration_minutes=30, priority="high", frequency="daily")
+        pet.add_task(task)
+        
+        scheduler = Scheduler(owner, pet)
+        
+        # Initially 1 task
+        assert len(pet.get_tasks()) == 1
+        
+        # Mark complete, should create next task
+        next_task = scheduler.mark_task_complete(task)
+        
+        assert task.is_completed is True
+        assert next_task is not None
+        assert next_task.title == "Daily Walk"
+        assert next_task.due_date == datetime.now().date() + timedelta(days=1)
+        assert len(pet.get_tasks()) == 2  # Original + new
+    
+    def test_weekly_recurring_task(self):
+        """Test weekly task recurrence."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task = Task(title="Weekly Bath", duration_minutes=60, priority="medium", frequency="weekly")
+        pet.add_task(task)
+        
+        scheduler = Scheduler(owner, pet)
+        
+        next_task = scheduler.mark_task_complete(task)
+        
+        assert next_task.due_date == datetime.now().date() + timedelta(days=7)
+    
+    def test_no_recurrence_for_as_needed(self):
+        """Test that as_needed tasks don't create recurrence."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task = Task(title="Vet Visit", duration_minutes=60, priority="high", frequency="as_needed")
+        pet.add_task(task)
+        
+        scheduler = Scheduler(owner, pet)
+        
+        next_task = scheduler.mark_task_complete(task)
+        
+        assert next_task is None
+        assert len(pet.get_tasks()) == 1  # No new task added
+
+
+class TestOwnerAdvanced:
+    """Tests for advanced Owner features."""
+    
+    def test_detect_time_conflicts(self):
+        """Test conflict detection across pets."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        
+        pet1 = Pet(name="Mochi", species="dog", age=3.0)
+        pet2 = Pet(name="Luna", species="cat", age=2.0)
+        
+        task1 = Task(title="Walk", duration_minutes=30, priority="high", frequency="daily", scheduled_time="09:00")
+        task2 = Task(title="Feeding", duration_minutes=10, priority="high", frequency="daily", scheduled_time="09:00")
+        
+        pet1.add_task(task1)
+        pet2.add_task(task2)
+        
+        owner.add_pet(pet1)
+        owner.add_pet(pet2)
+        
+        conflicts = owner.detect_all_time_conflicts()
+        
+        assert len(conflicts) == 1
+        assert "Conflict at 09:00" in conflicts[0]
+        assert "Walk" in conflicts[0] and "Feeding" in conflicts[0]
+    
+    def test_no_conflicts_when_times_differ(self):
+        """Test no conflicts when scheduled times are different."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task1 = Task(title="Walk", duration_minutes=30, priority="high", frequency="daily", scheduled_time="09:00")
+        task2 = Task(title="Feeding", duration_minutes=10, priority="high", frequency="daily", scheduled_time="10:00")
+        
+        pet.add_task(task1)
+        pet.add_task(task2)
+        
+        owner.add_pet(pet)
+        
+        conflicts = owner.detect_all_time_conflicts()
+        
+        assert len(conflicts) == 0
+    
+    def test_filter_tasks_by_status(self):
+        """Test filtering all tasks by completion status."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task1 = Task(title="Walk", duration_minutes=30, priority="high", frequency="daily")
+        task2 = Task(title="Feeding", duration_minutes=10, priority="high", frequency="daily")
+        
+        pet.add_task(task1)
+        pet.add_task(task2)
+        owner.add_pet(pet)
+        
+        task1.mark_complete()
+        
+        completed = owner.get_tasks_by_status(completed=True)
+        pending = owner.get_tasks_by_status(completed=False)
+        
+        assert len(completed) == 1
+        assert len(pending) == 1
+
+
+class TestEdgeCases:
+    """Tests for edge cases and error conditions."""
+    
+    def test_pet_with_no_tasks(self):
+        """Test scheduler with pet that has no tasks."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        owner.add_pet(pet)
+        
+        scheduler = Scheduler(owner, pet)
+        
+        schedule = scheduler.generate_schedule(datetime.now())
+        
+        assert len(schedule.scheduled_tasks) == 0
+        assert schedule.get_explanation() == "No tasks scheduled for today."
+    
+    def test_task_with_no_scheduled_time(self):
+        """Test sorting when some tasks have no scheduled time."""
+        owner = Owner(name="Jordan", available_hours=4.0)
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task1 = Task(title="With Time", duration_minutes=10, priority="high", frequency="daily", scheduled_time="09:00")
+        task2 = Task(title="No Time", duration_minutes=10, priority="high", frequency="daily")
+        
+        pet.add_task(task1)
+        pet.add_task(task2)
+        
+        scheduler = Scheduler(owner, pet)
+        sorted_tasks = scheduler.sort_tasks_by_time()
+        
+        # Task with time should come first
+        assert sorted_tasks[0].scheduled_time == "09:00"
+        assert sorted_tasks[1].scheduled_time is None
+    
+    def test_schedule_exceeds_available_time(self):
+        """Test when total task time exceeds owner's availability."""
+        owner = Owner(name="Jordan", available_hours=0.5)  # 30 minutes
+        pet = Pet(name="Mochi", species="dog", age=3.0)
+        
+        task1 = Task(title="Long Walk", duration_minutes=20, priority="high", frequency="daily")
+        task2 = Task(title="Another Task", duration_minutes=20, priority="high", frequency="daily")
+        
+        pet.add_task(task1)
+        pet.add_task(task2)
+        owner.add_pet(pet)
+        
+        scheduler = Scheduler(owner, pet)
+        schedule = scheduler.generate_schedule(datetime.now())
+        
+        # Should only schedule what fits (20 min task fits in 30 min availability)
+        assert len(schedule.scheduled_tasks) == 1  # Only first task fits
+        assert schedule.total_duration == 20  # 20 minutes scheduled
+        assert schedule.is_feasible()  # The scheduled tasks fit
+        
+        # But check that there are more tasks that couldn't be scheduled
+        all_tasks = pet.get_daily_tasks()
+        assert len(all_tasks) == 2  # Two tasks total
+        assert len(schedule.scheduled_tasks) < len(all_tasks)  # Not all tasks scheduled
+    
+    def test_due_date_override(self):
+        """Test that explicit due_date overrides frequency logic."""
+        from datetime import date
+        
+        task = Task(
+            title="Specific Date Task", 
+            duration_minutes=10, 
+            priority="high", 
+            frequency="daily",
+            due_date=date.today()
+        )
+        
+        assert task.is_due_today() is True
+        
+        # Set due date to tomorrow
+        tomorrow = date.today() + timedelta(days=1)
+        task.due_date = tomorrow
+        
+        assert task.is_due_today() is False
