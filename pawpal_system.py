@@ -1,7 +1,7 @@
 """PawPal+ System - Core logic for pet care scheduling."""
 
 from dataclasses import dataclass, field
-from datetime import datetime, time, timedelta
+from datetime import datetime, date, time, timedelta
 from typing import Optional
 
 
@@ -15,9 +15,14 @@ class Task:
     frequency: str  # "daily", "weekly", "as_needed"
     last_completed: Optional[datetime] = None
     is_completed: bool = False
+    scheduled_time: Optional[str] = None  # HH:MM
+    due_date: Optional[date] = None
     
     def is_due_today(self) -> bool:
-        """Check if task is due today based on frequency and last completion."""
+        """Check whether the task is due today."""
+        today = datetime.now().date()
+        if self.due_date is not None:
+            return self.due_date == today
         if self.frequency == "daily":
             return True
         elif self.frequency == "weekly":
@@ -34,10 +39,31 @@ class Task:
         priority_map = {"low": 1, "medium": 2, "high": 3}
         return priority_map.get(self.priority, 1)
     
-    def mark_complete(self) -> None:
-        """Mark this task as completed."""
+    def mark_complete(self) -> Optional["Task"]:
+        """Mark this task complete and return a new recurring task if needed."""
         self.is_completed = True
         self.last_completed = datetime.now()
+
+        if self.frequency in ("daily", "weekly"):
+            if self.due_date is not None:
+                current_due = self.due_date
+            else:
+                current_due = datetime.now().date()
+
+            delta = timedelta(days=1 if self.frequency == "daily" else 7)
+            next_due = current_due + delta
+
+            # Keep same scheduled_time and most attributes, new task created for next recurrence.
+            return Task(
+                title=self.title,
+                duration_minutes=self.duration_minutes,
+                priority=self.priority,
+                frequency=self.frequency,
+                scheduled_time=self.scheduled_time,
+                due_date=next_due,
+            )
+
+        return None
 
 
 @dataclass
@@ -90,6 +116,10 @@ class Owner:
         for pet in self.pets:
             all_tasks.extend(pet.get_tasks())
         return all_tasks
+
+    def get_tasks_by_status(self, completed: bool) -> list[Task]:
+        """Filter all tasks by completion status."""
+        return [task for task in self.get_all_tasks() if task.is_completed == completed]
     
     def get_today_tasks(self) -> list[Task]:
         """Get all tasks due today from all pets."""
@@ -97,6 +127,22 @@ class Owner:
         for pet in self.pets:
             all_tasks.extend(pet.get_daily_tasks())
         return all_tasks
+
+    def detect_all_time_conflicts(self) -> list[str]:
+        """Detect scheduling conflicts across all pets (same due time)."""
+        conflicts = []
+        tasks_with_time = [t for t in self.get_all_tasks() if t.scheduled_time]
+        time_map = {}
+
+        for task in tasks_with_time:
+            time_map.setdefault(task.scheduled_time, []).append(task)
+
+        for scheduled_time, grouped in time_map.items():
+            if len(grouped) > 1:
+                titles = ", ".join([t.title for t in grouped])
+                conflicts.append(f"Conflict at {scheduled_time}: {titles}")
+
+        return conflicts
 
 
 @dataclass
@@ -213,9 +259,30 @@ class Scheduler:
         return schedule
     
     def sort_tasks_by_priority(self) -> list[Task]:
-        """Sort tasks by priority (highest first) and other factors."""
+        """Sort tasks by priority (highest first)."""
         return sorted(self.pet.get_daily_tasks(), key=lambda t: -t.get_priority_score())
+
+    def sort_tasks_by_time(self) -> list[Task]:
+        """Sort tasks by scheduled time if set, otherwise send to end."""
+        return sorted(
+            self.pet.get_tasks(),
+            key=lambda t: t.scheduled_time or "23:59"
+        )
+
+    def filter_tasks(self, completed: Optional[bool] = None) -> list[Task]:
+        """Filter tasks by completion status."""
+        tasks = self.pet.get_tasks()
+        if completed is None:
+            return tasks
+        return [task for task in tasks if task.is_completed == completed]
     
+    def mark_task_complete(self, task: Task) -> Optional[Task]:
+        """Mark a task complete and register next recurrence if needed."""
+        next_task = task.mark_complete()
+        if next_task:
+            self.pet.add_task(next_task)
+        return next_task
+
     def check_time_conflicts(self) -> list[str]:
         """Identify tasks that cannot fit within available time."""
         conflicts = []

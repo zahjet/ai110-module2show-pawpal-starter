@@ -52,7 +52,12 @@ Why these changes? They emerged from actual usage in main.py and tests—the des
 **b. Tradeoffs**
 
 - Describe one tradeoff your scheduler makes.
+
+The scheduler currently uses exact scheduled-time string matching for conflict detection (like two tasks both at "08:00") rather than detecting partially overlapping intervals (like 08:00-08:30 and 08:15-08:45). This is simpler and lightweight for initial MVP behavior, but it can miss real conflicts where tasks overlap without exact start-time equality.
+
 - Why is that tradeoff reasonable for this scenario?
+
+For a pet care assistant in early stages, precise interval math adds complexity and edge cases; using exact-time rules provides clear, predictable warnings with minimal code. As usage grows, the app can evolve into full interval overlap checking.
 
 ---
 

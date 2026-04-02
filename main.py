@@ -40,35 +40,36 @@ def main():
         title="Morning walk",
         duration_minutes=30,
         priority="high",
-        frequency="daily"
+        frequency="daily",
+        scheduled_time="09:00"
     )
     task2 = Task(
         title="Afternoon walk",
         duration_minutes=20,
         priority="high",
-        frequency="daily"
+        frequency="daily",
+        scheduled_time="15:00"
     )
     task3 = Task(
         title="Feeding",
         duration_minutes=10,
         priority="high",
-        frequency="daily"
+        frequency="daily",
+        scheduled_time="08:00"
     )
     task4 = Task(
         title="Playtime",
         duration_minutes=15,
         priority="medium",
-        frequency="daily"
+        frequency="daily",
+        scheduled_time="12:00"
     )
-    
-    mochi.add_task(task1)
-    mochi.add_task(task2)
-    mochi.add_task(task3)
+
+    # Add tasks out-of-order to test sort_by_time
+    mochi.add_task(task2)  # afternoon first (out of chronological order)
     mochi.add_task(task4)
-    
-    print(f"✓ Added {len(mochi.get_tasks())} tasks to {mochi.name}")
-    
-    # Tasks for Luna
+    mochi.add_task(task1)
+    mochi.add_task(task3)
     task5 = Task(
         title="Feeding (Luna)",
         duration_minutes=5,
@@ -110,6 +111,50 @@ def main():
     else:
         print("\n✓ No time conflicts")
     
+    # Step 4.5: Task sorting + filtering + recurrence demo
+    print_separator("TASK SORT/FILTER/RECURRING DEMO")
+
+    print("Current Mochi tasks in insertion order:")
+    for t in mochi.get_tasks():
+        print(f"  • {t.scheduled_time or 'N/A'}  {t.title} (completed={t.is_completed})")
+
+    sorted_by_time = scheduler_mochi.sort_tasks_by_time()
+    print("\nMochi tasks sorted by scheduled time:")
+    for t in sorted_by_time:
+        print(f"  • {t.scheduled_time or 'N/A'}  {t.title}")
+
+    print("\nUnfinished tasks only:")
+    unfinished = scheduler_mochi.filter_tasks(completed=False)
+    for t in unfinished:
+        print(f"  • {t.title} (is_completed={t.is_completed})")
+
+    print("\nMarking 'Morning walk' complete...")
+    new_task = scheduler_mochi.mark_task_complete(task1)
+    print(f"  - Morning walk completed? {task1.is_completed}")
+    if new_task:
+        print(f"  - Recurring task added with due_date {new_task.due_date}")
+
+    print("\nNow tasks after recurrence:")
+    for t in mochi.get_tasks():
+        print(f"  • {t.title} due {t.due_date or datetime.now().date()} completed={t.is_completed}")
+
+    # Conflict test: add another task at same scheduled time
+    conflict_task = Task(
+        title="Vet call",
+        duration_minutes=15,
+        priority="medium",
+        frequency="as_needed",
+        scheduled_time="08:00"
+    )
+    mochi.add_task(conflict_task)
+    owner_conflicts = owner.detect_all_time_conflicts()
+    if owner_conflicts:
+        print("\nDetected conflicts across pets/tasks:")
+        for c in owner_conflicts:
+            print(f"  ⚠️ {c}")
+    else:
+        print("\nNo conflicts detected.")
+
     # Step 5: Generate Luna's schedule
     print_separator("SCHEDULING LUNA'S DAY")
     
