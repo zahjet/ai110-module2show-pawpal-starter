@@ -30,8 +30,15 @@ The system uses 6 main classes:
 
 **b. Design changes**
 
-- Did your design change during implementation?
-- If yes, describe at least one change and why you made it.
+Yes, the design changed during implementation for practical reasons:
+
+1. **Added `is_completed` status and `mark_complete()` to Task** - The initial design tracked `last_completed` but didn't have an explicit completion flag. During implementation, I added an `is_completed` boolean to track whether a task in the current day has been done, separate from the frequency-based logic. This was necessary for the "as_needed" frequency type.
+
+2. **Added helper methods to Owner** - I added `get_all_tasks()` and `get_today_tasks()` methods that aggregate tasks across all pets. This wasn't in the initial skeleton but proved essential for the UI layer to easily access all pet tasks without manual iteration.
+
+3. **Made `owner` a reference in DailySchedule** - The initial design showed DailySchedule as independent, but during implementation I made the `owner` field accessible in DailySchedule. This allows the schedule to check feasibility against the owner's availability constraint directly, rather than requiring the Scheduler to do it.
+
+Why these changes? They emerged from actual usage in main.py and tests—the design evolved toward practical convenience without changing the core architecture. The system still follows the original 1:many Owner->Pet->Task hierarchy.
 
 ---
 
