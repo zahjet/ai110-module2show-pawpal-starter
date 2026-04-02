@@ -4,8 +4,29 @@
 
 **a. Initial design**
 
-- Briefly describe your initial UML design.
-- What classes did you include, and what responsibilities did you assign to each?
+add a pet, schedule a walk, see today's tasks
+
+**UML Design:**
+
+The system uses 6 main classes:
+
+1. **Owner** - Stores owner info (name, availability) and manages pets. Responsible for setting time constraints that affect scheduling.
+
+2. **Pet** - Represents a pet with attributes (name, species, age, health notes). Manages a list of care tasks and retrieves daily-due tasks.
+
+3. **Task** - Represents an individual care activity (duration, priority level, frequency). Includes logic to determine if it's due today and compute priority scores for sorting.
+
+4. **Scheduler** - The core orchestrator that takes an Owner and Pet, then generates optimized daily schedules. Sorts tasks by priority, detects time conflicts, and applies scheduling constraints.
+
+5. **DailySchedule** - Represents the final output: a list of tasks scheduled for specific times with explanations of why each task was placed when it was.
+
+6. **ScheduledTask** - Represents a Task placed at a specific time slot within the day, tracking start/end times.
+
+**Key Relationships:**
+- Owner has many Pets (1:many)
+- Pet has many Tasks (1:many)  
+- Scheduler considers both Owner and Pet to generate a DailySchedule
+- DailySchedule contains ScheduledTask entries
 
 **b. Design changes**
 
